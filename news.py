@@ -26,6 +26,15 @@ def _clean(s: str) -> str:
     return html.unescape(s).strip()
 
 
+def _parse_ts(s: str) -> float:
+    """RSS pubDate 문자열 -> epoch(정렬용). 실패 시 0."""
+    try:
+        from email.utils import parsedate_to_datetime
+        return parsedate_to_datetime(s).timestamp()
+    except Exception:
+        return 0.0
+
+
 # ---------------------------------------------------------------- 한국 RSS
 KR_FEEDS = [
     ("연합뉴스", "https://www.yna.co.kr/rss/economy.xml"),
@@ -47,14 +56,19 @@ def korea_news(limit: int = 18) -> list[dict]:
                 title = _clean(t.group(1)) if t else ""
                 if not title:
                     continue
+                pub = _clean(d.group(1)) if d else ""
                 items.append({
                     "title": title,
                     "link": _clean(l.group(1)) if l else "",
-                    "date": _clean(d.group(1)) if d else "",
+                    "date": pub,
                     "source": src,
+                    "_ts": _parse_ts(pub),
                 })
         except Exception as e:
             print(f"  [뉴스/KR] {src} 실패: {repr(e)[:60]}")
+    items.sort(key=lambda x: x.get("_ts", 0), reverse=True)   # 최신순
+    for it in items:
+        it.pop("_ts", None)
     return items[:limit]
 
 
@@ -82,7 +96,9 @@ def us_news(api_key: str, limit: int = 12) -> list[dict]:
     try:
         url = f"https://finnhub.io/api/v1/news?category=general&token={api_key}"
         data = json.loads(_get(url).decode("utf-8", "ignore"))
-        items = data[:limit] if isinstance(data, list) else []
+        items = data if isinstance(data, list) else []
+        items.sort(key=lambda i: i.get("datetime", 0), reverse=True)   # 최신순
+        items = items[:limit]
         ko = _translate([i.get("headline", "") for i in items])
         return [{
             "title": k,

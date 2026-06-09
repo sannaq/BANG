@@ -23,16 +23,22 @@ _TEMPLATE = r"""<!DOCTYPE html>
 <title>Market Scanner</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
-  /* 한국식 색상: 상승/매수=빨강(--up), 하락/매도=파랑(--down) */
-  :root{--bg:#0d1117;--panel:#161b22;--panel2:#1c2330;--border:#2a3340;
+  /* 색: 상승/매수=빨강(--up), 하락/매도=파랑(--down). 기본 라이트, body.night=다크 */
+  :root{--bg:#f6f7f9;--panel:#ffffff;--panel2:#f1f3f5;--border:#e4e8ee;
+    --text:#1b2330;--muted:#6b7280;--up:#e02d3c;--down:#2563eb;--blue:#2563eb;
+    --amber:#b45309;--accent:#6d28d9;--grid:#eef1f5;--line:#334155;}
+  body.night{--bg:#0d1117;--panel:#161b22;--panel2:#1c2330;--border:#2a3340;
     --text:#e6edf3;--muted:#8b949e;--up:#f23645;--down:#3b82f6;--blue:#58a6ff;
-    --amber:#d29922;--accent:#7c3aed;}
+    --amber:#d29922;--accent:#7c3aed;--grid:#21262d;--line:#cbd5e1;}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic",sans-serif;}
-  header{padding:20px 26px;border-bottom:1px solid var(--border);
-    background:linear-gradient(135deg,#161b22,#1c2330);display:flex;
+  header{padding:18px 26px;border-bottom:1px solid var(--border);
+    background:var(--panel);display:flex;
     justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px}
+  .themebtn{background:var(--panel2);color:var(--text);border:1px solid var(--border);
+    border-radius:20px;padding:7px 14px;font-size:13px;cursor:pointer;font-weight:600}
+  .themebtn:hover{border-color:var(--accent)}
   header h1{margin:0;font-size:19px}
   header .sub{color:var(--muted);font-size:12.5px;margin-top:6px}
   .clock{text-align:right;font-size:12px;color:var(--muted)}
@@ -94,12 +100,33 @@ _TEMPLATE = r"""<!DOCTYPE html>
   .nt{font-size:14px;line-height:1.4}
   .nm2{font-size:11.5px;color:var(--muted);margin-top:4px}
   th[title]{cursor:help;text-decoration:underline dotted var(--muted) 1px;text-underline-offset:3px}
+  /* ===== 모바일(아이폰 등) 전용 ===== */
+  @media(max-width:680px){
+    .wrap{padding:14px 12px 50px}
+    header{padding:14px 14px}
+    header h1{font-size:18px}
+    .mhide{display:none !important}
+    table{font-size:16px}
+    th,td{padding:13px 8px}
+    .tk{font-size:16px}
+    .nm{display:block;margin-left:0;margin-top:2px;font-size:12px}
+    .badge{font-size:14px;padding:5px 13px}
+    .cards{grid-template-columns:1fr 1fr;gap:8px}
+    .card .v{font-size:18px}
+    .modal{padding:16px 14px;width:96vw}
+    .newsgrid{grid-template-columns:1fr}
+    .tab{padding:8px 11px;font-size:13.5px}
+    .mkbtn{padding:8px 14px}
+  }
 </style>
 </head>
 <body>
 <header>
   <div><h1>🛰️ Market Scanner</h1><div class="sub" id="subline"></div></div>
-  <div class="clock">마지막 갱신: <b id="updated"></b><br/>다음 새로고침: <span id="countdown"></span></div>
+  <div style="display:flex;align-items:center;gap:14px">
+    <button id="themeBtn" class="themebtn">🌙 야간</button>
+    <div class="clock">마지막 갱신: <b id="updated"></b><br/>다음 새로고침: <span id="countdown"></span></div>
+  </div>
 </header>
 <div class="wrap">
   <div class="mkrow" id="mkToggle"></div>
@@ -143,6 +170,12 @@ const fmt = n => (n==null?'-':Number(n).toLocaleString());
 const cls = v => v>0?'pos':v<0?'neg':'';
 const sgC = s => s==='BUY'?'b-buy':s==='SELL'?'b-sell':'b-hold';
 const RK = () => MK[curMarket].ranked;
+const themeBtn=document.getElementById('themeBtn');
+function applyTheme(t){ document.body.classList.toggle('night', t==='night');
+  themeBtn.textContent = t==='night'?'☀️ 주간':'🌙 야간'; }
+applyTheme(localStorage.getItem('theme')||'light');
+themeBtn.onclick=()=>{ const t=document.body.classList.contains('night')?'light':'night';
+  localStorage.setItem('theme',t); applyTheme(t); };
 document.getElementById('updated').textContent = M.generated;
 document.getElementById('mkToggle').innerHTML = M.market_order.map(mk=>
   `<button class="mkbtn ${mk===curMarket?'active':''}" data-mk="${mk}">${MK_LABEL[mk]||mk}</button>`).join('');
@@ -163,19 +196,19 @@ function row(r,i,mode){
   const cy=CUR[curMarket]||'';
   const hotMove = Math.abs(r.day_change)>=M.big_move?'<span class="hot">급변동</span>':'';
   const hotVol = r.vol_ratio>=M.vol_surge?'<span class="hot">거래량↑</span>':'';
-  let ex = mode==='vol_surge'?`<td>${r.vol_ratio}x</td>`
-         : mode==='volatile'?`<td>${r.atr_pct}%</td>`
-         : mode==='recommend'?`<td>${r.score}/5</td>`
-         : `<td>${r.rsi}</td>`;
+  let ex = mode==='vol_surge'?`<td class="mhide">${r.vol_ratio}x</td>`
+         : mode==='volatile'?`<td class="mhide">${r.atr_pct}%</td>`
+         : mode==='recommend'?`<td class="mhide">${r.score}/5</td>`
+         : `<td class="mhide">${r.rsi}</td>`;
   return `<tr data-mode="${mode}" data-idx="${i}">
     <td class="rank">${i+1}</td>
     <td class="l"><span class="tk">${r.ticker}</span><span class="nm">${r.name||''}</span>${(mode==='gainers'||mode==='losers')?hotMove:''}${mode==='vol_surge'?hotVol:''}</td>
     <td>${cy}${fmt(r.close)}</td>
     <td class="${cls(r.day_change)}">${r.day_change>0?'+':''}${r.day_change}%</td>
-    <td>${cy}${fmt(r.pred_close)} <span class="${cls(r.pred_chg)}" style="font-size:11px">(${r.pred_chg>0?'+':''}${r.pred_chg}%)</span></td>
+    <td class="mhide">${cy}${fmt(r.pred_close)} <span class="${cls(r.pred_chg)}" style="font-size:11px">(${r.pred_chg>0?'+':''}${r.pred_chg}%)</span></td>
     <td><span class="badge ${sgC(r.signal)}">${sgT(r.signal)}</span></td>
     ${ex}
-    <td>${spark(r.spark)}</td>
+    <td class="mhide">${spark(r.spark)}</td>
   </tr>`;
 }
 function headFor(mode){
@@ -186,14 +219,14 @@ function headFor(mode){
     _:['RSI','0~100. 70이상 과매수, 30이하 과매도로 보는 보조지표']
   };
   const ex = exMap[mode] || exMap._;
-  const T = (t,tip)=>`<th title="${tip}">${t}</th>`;
+  const T = (t,tip,c)=>`<th class="${c||''}" title="${tip}">${t}</th>`;
   return `<tr><th class="rank">#</th><th class="l">종목 (티커·이름)</th>`
     + T('현재가','현재 주가. 미국은 Finnhub 실시간 반영')
     + T('등락','직전 정규장 종가 대비 등락률(프리장 제외). 빨강=상승, 파랑=하락')
-    + T('예측마감','추세·변동성으로 추정한 다음 장 마감가(참고용)')
+    + T('예측마감','추세·변동성으로 추정한 다음 장 마감가(참고용)','mhide')
     + T('신호','매수=상승신호 · 매도=하락신호 · 관망=중립')
-    + T(ex[0], ex[1])
-    + T('추세','최근 30일 가격 흐름 미니차트')
+    + T(ex[0], ex[1], 'mhide')
+    + T('추세','최근 30일 가격 흐름 미니차트','mhide')
     + `</tr>`;
 }
 function renderNews(){
@@ -261,21 +294,26 @@ function openModal(mode, idx){
   const obv=[]; let acc=0;
   for(let k=0;k<d.vol.length;k++){ acc += (d.updown[k]>0?1:-1)*d.vol[k]; obv.push(Math.round(acc)); }
   const volColors = d.updown.map(u=> u>0?'rgba(242,54,69,.7)':'rgba(59,130,246,.7)');
-  const grid={color:'#21262d'}, tick={color:'#8b949e',maxTicksLimit:8};
+  const cs=getComputedStyle(document.body);
+  const gcol=(cs.getPropertyValue('--grid')||'#eef1f5').trim();
+  const tcol=(cs.getPropertyValue('--muted')||'#6b7280').trim();
+  const lcol=(cs.getPropertyValue('--line')||'#334155').trim();
+  const txt=(cs.getPropertyValue('--text')||'#1b2330').trim();
+  const grid={color:gcol}, tick={color:tcol,maxTicksLimit:8};
   if(priceChart)priceChart.destroy(); if(flowChart)flowChart.destroy();
   priceChart=new Chart(document.getElementById('mPrice'),{type:'line',
-    data:{labels:d.dates,datasets:[{label:'종가',data:d.close,borderColor:'#cbd5e1',
+    data:{labels:d.dates,datasets:[{label:'종가',data:d.close,borderColor:lcol,
       borderWidth:1.8,pointRadius:0,tension:.15}]},
-    options:{responsive:true,plugins:{legend:{labels:{color:'#8b949e'}},
-      title:{display:true,text:'가격 (최근 60일)',color:'#e6edf3'}},
+    options:{responsive:true,plugins:{legend:{labels:{color:tcol}},
+      title:{display:true,text:'가격 (최근 60일)',color:txt}},
       scales:{x:{ticks:tick,grid:grid},y:{ticks:tick,grid:grid}}}});
   flowChart=new Chart(document.getElementById('mFlow'),{
     data:{labels:d.dates,datasets:[
       {type:'bar',label:'거래량(매수=빨강/매도=파랑)',data:d.vol,backgroundColor:volColors,yAxisID:'y',order:2},
       {type:'line',label:'누적 매수세',data:obv,borderColor:'#d29922',borderWidth:1.6,
        pointRadius:0,tension:.15,yAxisID:'y1',order:1}]},
-    options:{responsive:true,plugins:{legend:{labels:{color:'#8b949e'}},
-      title:{display:true,text:'매수세 / 매도세',color:'#e6edf3'}},
+    options:{responsive:true,plugins:{legend:{labels:{color:tcol}},
+      title:{display:true,text:'매수세 / 매도세',color:txt}},
       scales:{x:{ticks:tick,grid:grid},y:{position:'left',ticks:tick,grid:grid},
         y1:{position:'right',ticks:{color:'#d29922'},grid:{drawOnChartArea:false}}}}});
   overlay.classList.add('open');
