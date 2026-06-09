@@ -52,6 +52,23 @@ def one_cycle():
             "ranked": ranked,
         }
 
+    # 한국: 투자자별 매매동향(일별) — 표시 종목에 첨부 (최대 40종목)
+    try:
+        kr_rk = markets.get("KR", {}).get("ranked", {})
+        seen_kr = {}
+        for key in ("recommend", "gainers", "losers", "vol_surge", "volatile"):
+            for r in kr_rk.get(key, []):
+                seen_kr.setdefault(r["ticker"], r)
+        for j, (tk, r) in enumerate(seen_kr.items()):
+            if j >= 40:
+                break
+            inv = scanner.fetch_kr_investors(tk, 12)
+            if inv:
+                r["investors"] = inv
+        print(f"  [투자자] 한국 {min(len(seen_kr), 40)}종목 매매동향 첨부")
+    except Exception as e:
+        print(f"  [투자자] 오류: {repr(e)[:70]}")
+
     # 뉴스 수집 (한국 RSS + 미국 Finnhub 번역 + 종목별)
     news_data = {"kr": [], "us": []}
     try:

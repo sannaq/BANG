@@ -86,6 +86,43 @@ def _fetch_kr_one(code: str) -> pd.DataFrame | None:
         return None
 
 
+# ---------------------------------------------------------------- 투자자별 매매동향(한국)
+def fetch_kr_investors(code: str, days: int = 12) -> dict | None:
+    """개인·외국인·기관·기타법인 일별 순매수(억원). pykrx get_market_trading_value_by_date."""
+    try:
+        from pykrx import stock
+        end = dt.date.today()
+        start = end - dt.timedelta(days=days * 3 + 10)
+        df = stock.get_market_trading_value_by_date(
+            start.strftime("%Y%m%d"), end.strftime("%Y%m%d"), code)
+        if df is None or len(df) == 0:
+            return None
+
+        def col(*names):
+            for n in names:
+                if n in df.columns:
+                    return n
+            return None
+        ci = col("개인")
+        cf = col("외국인합계", "외국인")
+        cn = col("기관합계", "기관")
+        ce = col("기타법인")
+        d = df.tail(days)
+        EOK = 1e8  # 원 -> 억원
+
+        def ser(c):
+            return [round(float(d[c].iloc[i]) / EOK, 1) if c else 0.0
+                    for i in range(len(d))]
+        return {
+            "dates": [t.strftime("%m-%d") for t in d.index],
+            "indiv": ser(ci), "foreign": ser(cf),
+            "inst": ser(cn), "etc": ser(ce),
+        }
+    except Exception as e:
+        print(f"  [투자자/{code}] 실패: {repr(e)[:50]}")
+        return None
+
+
 # ---------------------------------------------------------------- 지표 계산
 def _atr(df: pd.DataFrame, n: int = 14) -> float:
     h, l, c = df["High"], df["Low"], df["Close"]

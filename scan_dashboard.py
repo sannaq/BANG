@@ -155,6 +155,8 @@ _TEMPLATE = r"""<!DOCTYPE html>
     <div class="chartbox"><canvas id="mFlow" height="150"></canvas></div>
     <p class="pl">막대=일별 거래량(빨강 매수우위/파랑 매도우위), 선=누적 매수세(매수-매도 거래량 누적).</p>
     <div id="mNews"></div>
+    <div id="mInvest"></div>
+    <div class="chartbox" id="mInvWrap"><canvas id="mInvChart" height="150"></canvas></div>
   </div>
 </div>
 <script>
@@ -268,7 +270,7 @@ document.querySelectorAll('.tab').forEach(t=>{
     document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id===curTab));
   };
 });
-let priceChart, flowChart, modalOpen=false;
+let priceChart, flowChart, invChart, modalOpen=false;
 const overlay=document.getElementById('overlay');
 function openModal(mode, idx){
   const r = RK()[mode][idx]; if(!r||!r.detail) return;
@@ -316,6 +318,33 @@ function openModal(mode, idx){
       title:{display:true,text:'매수세 / 매도세',color:txt}},
       scales:{x:{ticks:tick,grid:grid},y:{position:'left',ticks:tick,grid:grid},
         y1:{position:'right',ticks:{color:'#d29922'},grid:{drawOnChartArea:false}}}}});
+  // 투자자별 매매동향(한국)
+  if(invChart)invChart.destroy();
+  const inv = r.investors;
+  const invWrap = document.getElementById('mInvWrap');
+  if(inv && inv.dates && inv.dates.length){
+    const n=inv.dates.length, st=Math.max(0,n-8);
+    const cell=v=>`<td class="${v>0?'pos':v<0?'neg':''}">${v>0?'+':''}${v}</td>`;
+    let rows='';
+    for(let k=n-1;k>=st;k--){
+      rows+=`<tr><td class="l">${inv.dates[k]}</td>${cell(inv.indiv[k])}${cell(inv.foreign[k])}${cell(inv.inst[k])}</tr>`;
+    }
+    document.getElementById('mInvest').innerHTML =
+      `<div class="nh" style="margin-top:14px">📊 투자자별 순매수 <span class="pl">(억원 · +매수/−매도)</span></div>`
+      +`<table style="font-size:13.5px"><thead><tr><th class="l">날짜</th><th>개인</th><th>외국인</th><th>기관</th></tr></thead><tbody>${rows}</tbody></table>`;
+    invWrap.style.display='';
+    invChart=new Chart(document.getElementById('mInvChart'),{type:'bar',
+      data:{labels:inv.dates,datasets:[
+        {label:'개인',data:inv.indiv,backgroundColor:'#9ca3af'},
+        {label:'외국인',data:inv.foreign,backgroundColor:'#10b981'},
+        {label:'기관',data:inv.inst,backgroundColor:'#3b82f6'}]},
+      options:{responsive:true,plugins:{legend:{labels:{color:tcol}},
+        title:{display:true,text:'투자자별 순매수 추이 (억원)',color:txt}},
+        scales:{x:{ticks:tick,grid:grid},y:{ticks:tick,grid:grid}}}});
+  } else {
+    document.getElementById('mInvest').innerHTML='';
+    invWrap.style.display='none';
+  }
   overlay.classList.add('open');
 }
 function closeModal(){ modalOpen=false; overlay.classList.remove('open'); }
