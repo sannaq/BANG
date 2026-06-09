@@ -52,12 +52,31 @@ def one_cycle():
             "ranked": ranked,
         }
 
+    # 뉴스 수집 (한국 RSS + 미국 Finnhub 번역 + 종목별)
+    news_data = {"kr": [], "us": []}
+    try:
+        import news
+        api = getattr(C, "FINNHUB_API_KEY", "")
+        news_data["kr"] = news.korea_news(18)
+        news_data["us"] = news.us_news(api, 12)
+        us_rk = markets.get("US", {}).get("ranked", {})
+        seen = set()
+        for key in ("gainers", "losers"):
+            for r in us_rk.get(key, [])[:4]:
+                if r["ticker"] not in seen:
+                    seen.add(r["ticker"])
+                    r["news"] = news.company_news(api, r["ticker"], 3)
+        print(f"  [뉴스] 한국 {len(news_data['kr'])}건 · 미국 {len(news_data['us'])}건")
+    except Exception as e:
+        print(f"  [뉴스] 수집 오류: {repr(e)[:80]}")
+
     meta = {
         "generated": dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).strftime("%Y-%m-%d %H:%M:%S KST"),
         "fast": C.FAST_MA, "slow": C.SLOW_MA,
         "big_move": C.BIG_MOVE_PCT,
         "vol_surge": C.VOL_SURGE_MULT,
         "market_order": list(markets.keys()),
+        "news": news_data,
     }
     html = scan_dashboard.build_html(meta, markets, C.AUTO_RELOAD_SECONDS)
     with open(OUT, "w", encoding="utf-8") as f:

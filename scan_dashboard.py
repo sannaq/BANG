@@ -85,6 +85,15 @@ _TEMPLATE = r"""<!DOCTYPE html>
   .mstat{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin:12px 0}
   .mstat .k{font-size:11px;color:var(--muted)}.mstat .v{font-size:15px;font-weight:700;margin-top:2px}
   .chartbox{background:var(--panel2);border-radius:10px;padding:12px;margin-top:12px}
+  .newsgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:760px){.newsgrid{grid-template-columns:1fr}}
+  .nh{font-size:15px;margin:6px 0 10px;font-weight:700}
+  .nitem{display:block;padding:10px 12px;border:1px solid var(--border);border-radius:8px;
+    margin-bottom:8px;text-decoration:none;color:var(--text)}
+  .nitem:hover{background:var(--panel2)}
+  .nt{font-size:14px;line-height:1.4}
+  .nm2{font-size:11.5px;color:var(--muted);margin-top:4px}
+  th[title]{cursor:help;text-decoration:underline dotted var(--muted) 1px;text-underline-offset:3px}
 </style>
 </head>
 <body>
@@ -101,9 +110,11 @@ _TEMPLATE = r"""<!DOCTYPE html>
     <div class="tab" data-v="losers">📉 급락 TOP</div>
     <div class="tab" data-v="vol_surge">🔊 거래량 급증</div>
     <div class="tab" data-v="volatile">⚡ 변동성 상위</div>
+    <div class="tab" data-v="news">📰 뉴스</div>
   </div>
   <p class="hint">💡 종목을 누르면 상세 차트가 열려요. 상승=<span class="pos">빨강</span>·하락=<span class="neg">파랑</span>. &nbsp; ※ 등락은 직전 <b>정규장 종가 기준</b>(프리장 제외) · 예측마감은 참고용 추정치예요.</p>
   <div id="panes"></div>
+  <div class="view" id="news"><div id="newsBox"></div></div>
 </div>
 <div class="overlay" id="overlay">
   <div class="modal">
@@ -116,6 +127,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
     <div class="chartbox"><canvas id="mPrice" height="150"></canvas></div>
     <div class="chartbox"><canvas id="mFlow" height="150"></canvas></div>
     <p class="pl">막대=일별 거래량(빨강 매수우위/파랑 매도우위), 선=누적 매수세(매수-매도 거래량 누적).</p>
+    <div id="mNews"></div>
   </div>
 </div>
 <script>
@@ -167,8 +179,35 @@ function row(r,i,mode){
   </tr>`;
 }
 function headFor(mode){
-  const exh = mode==='vol_surge'?'거래량':mode==='volatile'?'변동성':mode==='recommend'?'점수':'RSI';
-  return `<tr><th class="rank">#</th><th class="l">종목</th><th>현재가</th><th>등락</th><th>예측마감</th><th>신호</th><th>${exh}</th><th>추세</th></tr>`;
+  const exMap = {
+    vol_surge:['거래량','평소(20일 평균) 대비 오늘 거래량 배수. 높을수록 관심 급증'],
+    volatile:['변동성','ATR — 하루 평균 가격 출렁임 크기(%). 클수록 등락 심함'],
+    recommend:['점수','매수 신호 점수(0~5). 추세·이평선·RSI·전환 조건 합산'],
+    _:['RSI','0~100. 70이상 과매수, 30이하 과매도로 보는 보조지표']
+  };
+  const ex = exMap[mode] || exMap._;
+  const T = (t,tip)=>`<th title="${tip}">${t}</th>`;
+  return `<tr><th class="rank">#</th><th class="l">종목 (티커·이름)</th>`
+    + T('현재가','현재 주가. 미국은 Finnhub 실시간 반영')
+    + T('등락','직전 정규장 종가 대비 등락률(프리장 제외). 빨강=상승, 파랑=하락')
+    + T('예측마감','추세·변동성으로 추정한 다음 장 마감가(참고용)')
+    + T('신호','매수=상승신호 · 매도=하락신호 · 관망=중립')
+    + T(ex[0], ex[1])
+    + T('추세','최근 30일 가격 흐름 미니차트')
+    + `</tr>`;
+}
+function renderNews(){
+  const n = M.news || {kr:[], us:[]};
+  const li = (a, en) => `<a class="nitem" href="${a.link||'#'}" target="_blank" rel="noopener">
+     <div class="nt">${a.title||''}</div>
+     <div class="nm2">${a.source||''}${en&&a.title_en?(' · 원문: '+a.title_en):''}${a.date?(' · '+a.date):''}</div></a>`;
+  const krH = (n.kr||[]).map(a=>li(a,false)).join('') || '<div class="pl">불러올 한국 뉴스가 없어요</div>';
+  const usH = (n.us||[]).map(a=>li(a,true)).join('') || '<div class="pl">불러올 미국 뉴스가 없어요</div>';
+  document.getElementById('newsBox').innerHTML =
+    `<div class="newsgrid">
+       <div><div class="nh">🇰🇷 한국 증시 뉴스</div>${krH}</div>
+       <div><div class="nh">🇺🇸 미국 증시 뉴스 <span class="pl">(자동 한글 번역)</span></div>${usH}</div>
+     </div>`;
 }
 function pane(mode,rows){
   const body = rows.length? rows.map((r,i)=>row(r,i,mode)).join('')
@@ -215,6 +254,10 @@ function openModal(mode, idx){
     ['거래량배수',r.vol_ratio+'x'],['변동성(ATR)',r.atr_pct+'%']];
   document.getElementById('mStats').innerHTML = stats.map(s=>
     `<div><div class="k">${s[0]}</div><div class="v">${s[1]}</div></div>`).join('');
+  const cn = r.news || [];
+  document.getElementById('mNews').innerHTML = cn.length
+    ? '<div class="nh" style="margin-top:14px">📰 관련 뉴스</div>' + cn.map(a=>`<a class="nitem" href="${a.link||'#'}" target="_blank" rel="noopener"><div class="nt">${a.title||''}</div>${a.title_en?('<div class="nm2">원문: '+a.title_en+'</div>'):''}</a>`).join('')
+    : '';
   const obv=[]; let acc=0;
   for(let k=0;k<d.vol.length;k++){ acc += (d.updown[k]>0?1:-1)*d.vol[k]; obv.push(Math.round(acc)); }
   const volColors = d.updown.map(u=> u>0?'rgba(242,54,69,.7)':'rgba(59,130,246,.7)');
@@ -254,6 +297,7 @@ setInterval(()=>{
   cd.textContent = left+'초';
 }, 1000);
 renderMarket();
+renderNews();
 </script>
 </body>
 </html>"""
