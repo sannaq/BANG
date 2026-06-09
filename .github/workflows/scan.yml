@@ -29,6 +29,7 @@ jobs:
           USE_KIS_REALTIME: ${{ secrets.USE_KIS_REALTIME }}
           KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
           KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
         run: |
           python run_scanner.py --once
           mkdir -p public
