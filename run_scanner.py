@@ -37,13 +37,19 @@ def one_cycle():
             tickers = tickers[:C.MAX_TICKERS]
         print(f"[{mk}] 유니버스: {usrc} / {len(tickers)}종목")
         rows, dsrc = scanner.scan(mk, tickers, names)
+        ranked = scanner.rank(rows)
+        if mk == "US":
+            try:
+                scanner.finnhub_overlay(ranked)
+            except Exception as e:
+                print(f"  [Finnhub] overlay 오류: {repr(e)[:80]}")
         markets[mk] = {
             "market": mk,
             "universe": usrc,
             "universe_size": len(tickers),
             "n_analyzed": len(rows),
             "data_mode": "데모(합성)" if dsrc == "demo" else "실데이터",
-            "ranked": scanner.rank(rows),
+            "ranked": ranked,
         }
 
     meta = {

@@ -57,3 +57,8 @@ USE_KIS_REALTIME = os.environ.get(
 KIS_APP_KEY = os.environ.get("KIS_APP_KEY", KIS_APP_KEY)
 KIS_APP_SECRET = os.environ.get("KIS_APP_SECRET", KIS_APP_SECRET)
 KIS_ENV = os.environ.get("KIS_ENV", KIS_ENV)
+
+# ---- Finnhub 실시간 현재가 (미국, 선택) ----
+# https://finnhub.io 무료 키. 키만 넣으면 미국 상위 종목 현재가가 실시간으로 갱신됩니다.
+FINNHUB_API_KEY = ""
+FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", FINNHUB_API_KEY)

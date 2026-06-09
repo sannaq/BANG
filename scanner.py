@@ -325,3 +325,41 @@ def rank(rows: list[dict]) -> dict:
         key=lambda r: (r["score"], r["day_change"]), reverse=True)[:n]
     return {"gainers": gainers, "losers": losers, "vol_surge": vol_surge,
             "volatile": volatile, "recommend": recommend}
+
+
+def finnhub_overlay(ranked: dict) -> int:
+    """화면에 표시되는 미국 상위 종목의 '현재가'를 Finnhub 실시간 값으로 갱신.
+    무료 한도(분당 60회)를 지키려고 표시 종목(중복 제거)만 조회한다. 갱신 개수 반환."""
+    try:
+        import finnhub_data as fd
+        if not fd.enabled():
+            return 0
+    except Exception:
+        return 0
+    import time
+    seen: dict[str, dict] = {}
+    for key in ("recommend", "gainers", "losers", "vol_surge", "volatile"):
+        for r in ranked.get(key, []):
+            if r.get("market") == "US":
+                seen.setdefault(r["ticker"], r)
+    updated = 0
+    for i, (tk, r) in enumerate(seen.items()):
+        q = fd.get_quote(tk)
+        if q and q.get("c"):
+            old = r.get("close") or q["c"]
+            c = float(q["c"])
+            ratio = (c / old) if old else 1.0
+            r["close"] = round(c, 2)
+            if q.get("dp") is not None:
+                r["day_change"] = round(float(q["dp"]), 2)
+            for f in ("pred_close", "pred_low", "pred_high"):
+                if r.get(f):
+                    r[f] = round(r[f] * ratio, 2)
+            r["realtime"] = True
+            updated += 1
+        if (i + 1) % 55 == 0:
+            time.sleep(61)
+    ranked["gainers"].sort(key=lambda r: r["day_change"], reverse=True)
+    ranked["losers"].sort(key=lambda r: r["day_change"])
+    print(f"  [Finnhub] 미국 현재가 실시간 갱신: {updated}/{len(seen)}종목")
+    return updated
