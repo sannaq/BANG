@@ -86,6 +86,21 @@ def _get_us(name, custom):
     if name == "custom":
         tk = list(dict.fromkeys(custom or []))
         return tk, {t: US_FALLBACK.get(t, t) for t in tk}, "US/custom"
+    # 0) GitHub raw S&P500 CSV (클라우드에서 안 막힘) — 약 500종목
+    try:
+        import urllib.request, csv, io
+        url = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/main/data/constituents.csv"
+        txt = urllib.request.urlopen(url, timeout=15).read().decode("utf-8", "ignore")
+        names = {}
+        for row in csv.DictReader(io.StringIO(txt)):
+            sym = (row.get("Symbol") or "").strip().upper().replace(".", "-")
+            nm = (row.get("Security") or sym).strip()
+            if sym and len(sym) <= 6:
+                names[sym] = nm
+        if len(names) > 100:
+            return list(names), names, "US/sp500(csv)"
+    except Exception as e:
+        print(f"  미국 S&P500 CSV 실패 -> 위키피디아 시도: {repr(e)[:70]}")
     urls = {
         "sp500": [("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
                    ["Symbol", "Ticker"], ["Security", "Company"])],
@@ -130,6 +145,26 @@ def _get_kr(name, custom):
         except Exception:
             names = {c: KR_FALLBACK.get(c, c) for c in tk}
         return tk, names, "KR/custom"
+    # 0) GitHub raw stock_master CSV(gz) — 코스피/코스닥 코드+이름 (클라우드 안전)
+    try:
+        import urllib.request, gzip, csv, io
+        url = "https://github.com/FinanceData/stock_master/raw/master/stock_master.csv.gz"
+        raw = urllib.request.urlopen(url, timeout=20).read()
+        txt = gzip.decompress(raw).decode("utf-8", "ignore")
+        want = ({"KOSPI"} if name in ("kospi", "kospi200")
+                else {"KOSDAQ"} if name == "kosdaq" else {"KOSPI", "KOSDAQ"})
+        names = {}
+        for row in csv.DictReader(io.StringIO(txt)):
+            sym = (row.get("Symbol") or row.get("Code") or row.get("종목코드") or "").strip()
+            mkt = (row.get("Market") or "").strip().upper()
+            nm = (row.get("Name") or row.get("한글명") or row.get("Korean Name") or sym).strip()
+            if sym.isdigit() and len(sym) == 6 and (mkt in want or not mkt):
+                names[sym] = nm
+        if len(names) > 50:
+            codes = list(names)[:250]   # 속도 위해 상한(필요시 숫자 조정)
+            return codes, {c: names[c] for c in codes}, f"KR/{name}(csv)"
+    except Exception as e:
+        print(f"  한국 stock_master CSV 실패 -> pykrx 시도: {repr(e)[:70]}")
     try:
         from pykrx import stock
         codes = []
