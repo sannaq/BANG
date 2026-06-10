@@ -50,6 +50,10 @@ def one_cycle():
             "n_analyzed": len(rows),
             "data_mode": "데모(합성)" if dsrc == "demo" else "실데이터",
             "ranked": ranked,
+            "all": [{"ticker": r["ticker"], "name": r.get("name", ""),
+                     "close": r["close"], "day_change": r["day_change"],
+                     "pred_close": r.get("pred_close"), "pred_chg": r.get("pred_chg"),
+                     "signal": r["signal"], "rsi": r.get("rsi")} for r in rows],
         }
 
     # 한국: 투자자별 매매동향(일별) — 표시 종목에 첨부 (최대 40종목)
