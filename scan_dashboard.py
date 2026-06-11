@@ -117,7 +117,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
     <div class="mh"><div><h2 id="mt"></h2><div class="msub" id="ms"></div></div><button class="x" id="mx">×</button></div>
     <div class="stat" id="mstat"></div>
     <div id="tfbtns"></div>
-    <div class="box"><canvas id="mc" height="150"></canvas></div>
+    <div class="box"><div id="mc" style="height:240px"></div></div>
     <div class="box"><canvas id="mflow" height="150"></canvas></div>
     <div id="mnews"></div>
     <div id="minv"></div>
@@ -254,24 +254,36 @@ function openModalRow(r){
   const lcol=cs.getPropertyValue('--line').trim(), txt=cs.getPropertyValue('--tx').trim();
   const grid={color:gcol}, tick={color:tcol,maxTicksLimit:8};
   const d=full.detail;
-  if(chart)chart.destroy(); if(flowChart)flowChart.destroy(); if(invChart)invChart.destroy();
-  const tfWrap=document.getElementById('tfbtns');
-  function drawPrice(s,label){ if(chart)chart.destroy();
-    chart=new Chart(document.getElementById('mc'),{type:'line',data:{labels:s.dates,
-      datasets:[{label:'가격 ('+label+')',data:s.close,borderColor:lcol,borderWidth:1.8,pointRadius:0,tension:.15}]},
-      options:{plugins:{legend:{labels:{color:tcol}}},scales:{x:{ticks:tick,grid:grid},y:{ticks:tick,grid:grid}}}}); }
+  if(flowChart)flowChart.destroy(); if(invChart)invChart.destroy();
+  const mc=document.getElementById('mc'), tfWrap=document.getElementById('tfbtns');
+  function candleSVG(s){
+    const n=s.c.length; if(!n) return '<div class="empty">데이터 없음</div>';
+    const W=560,H=240,P=10, lo=Math.min(...s.l), hi=Math.max(...s.h), rng=(hi-lo)||1;
+    const Y=v=>(P+(hi-v)/rng*(H-2*P)), step=(W-2*P)/n, cw=Math.max(1.5,step*0.6);
+    const gl=v=>`<line x1="0" y1="${Y(v).toFixed(1)}" x2="${W}" y2="${Y(v).toFixed(1)}" stroke="${gcol}" stroke-width="0.5"/><text x="3" y="${(Y(v)-2).toFixed(1)}" fill="${tcol}" font-size="9">${Math.round(v).toLocaleString()}</text>`;
+    let g=gl(hi)+gl((hi+lo)/2)+gl(lo);
+    for(let i=0;i<n;i++){const x=P+step*i+step/2,up=s.c[i]>=s.o[i],col=up?'#e02d3c':'#2563eb';
+      g+=`<line x1="${x.toFixed(1)}" y1="${Y(s.h[i]).toFixed(1)}" x2="${x.toFixed(1)}" y2="${Y(s.l[i]).toFixed(1)}" stroke="${col}" stroke-width="1"/>`;
+      const a=Y(s.o[i]),b=Y(s.c[i]),top=Math.min(a,b),hh=Math.max(1,Math.abs(b-a));
+      g+=`<rect x="${(x-cw/2).toFixed(1)}" y="${top.toFixed(1)}" width="${cw.toFixed(1)}" height="${hh.toFixed(1)}" fill="${col}"/>`;}
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="240" preserveAspectRatio="none">${g}</svg>`;
+  }
+  function lineSVG(close){
+    const n=close.length; if(!n) return '<div class="empty">데이터 없음</div>';
+    const W=560,H=240,P=10, lo=Math.min(...close),hi=Math.max(...close),rng=(hi-lo)||1;
+    const Y=v=>(P+(hi-v)/rng*(H-2*P)), step=(W-2*P)/((n-1)||1);
+    const pts=close.map((v,i)=>`${(P+step*i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="240" preserveAspectRatio="none"><polyline fill="none" stroke="${lcol}" stroke-width="1.5" points="${pts}"/></svg>`;
+  }
+  function drawPrice(s){ mc.innerHTML = (s&&s.c)? candleSVG(s) : lineSVG((s&&s.close)||[]); }
   if(full.chart){
-    const lab={"일":"일봉","주":"주봉","월":"월봉","년":"연봉"};
-    const tfs=['일','주','월','년'].filter(k=>full.chart[k]&&full.chart[k].dates.length);
+    const tfs=['일','주','월','년'].filter(k=>full.chart[k]&&full.chart[k].c&&full.chart[k].c.length);
     tfWrap.innerHTML=tfs.map((k,i)=>`<button class="tf${i===0?' on':''}" data-k="${k}">${k}</button>`).join('');
-    document.getElementById('mc').style.display='';
-    drawPrice(full.chart[tfs[0]],lab[tfs[0]]);
+    mc.style.display=''; drawPrice(full.chart[tfs[0]]);
     tfWrap.querySelectorAll('.tf').forEach(b=>b.onclick=()=>{
-      tfWrap.querySelectorAll('.tf').forEach(x=>x.classList.toggle('on',x===b));
-      drawPrice(full.chart[b.dataset.k],lab[b.dataset.k]);});
-  } else if(d){ tfWrap.innerHTML=''; document.getElementById('mc').style.display='';
-    drawPrice({dates:d.dates,close:d.close},'최근 60일');
-  } else { tfWrap.innerHTML=''; document.getElementById('mc').style.display='none'; }
+      tfWrap.querySelectorAll('.tf').forEach(x=>x.classList.toggle('on',x===b)); drawPrice(full.chart[b.dataset.k]);});
+  } else if(d){ tfWrap.innerHTML=''; mc.style.display=''; drawPrice({close:d.close}); }
+  else { tfWrap.innerHTML=''; mc.style.display='none'; }
   document.getElementById('mflow').style.display = d?'':'none';
   if(d){
     const obv=[];let acc=0;for(let k=0;k<d.vol.length;k++){acc+=(d.updown[k]>0?1:-1)*d.vol[k];obv.push(Math.round(acc));}

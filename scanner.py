@@ -126,11 +126,14 @@ def fetch_kr_investors(code: str, days: int = 12) -> dict | None:
 # ---------------------------------------------------------------- 기간별 차트(일/주/월/년)
 def _ser(d: pd.DataFrame) -> dict:
     return {"dates": [t.strftime("%y-%m-%d") for t in d.index],
-            "close": [round(float(x), 2) for x in d["Close"].tolist()]}
+            "o": [round(float(x), 2) for x in d["Open"].tolist()],
+            "h": [round(float(x), 2) for x in d["High"].tolist()],
+            "l": [round(float(x), 2) for x in d["Low"].tolist()],
+            "c": [round(float(x), 2) for x in d["Close"].tolist()]}
 
 
 def fetch_chart_series(market: str, code: str) -> dict | None:
-    """긴 일봉을 받아 일/주/월/년 종가 시리즈 생성 (모달 기간 전환용)."""
+    """긴 일봉(OHLC)을 받아 일/주/월/년 캔들 시리즈 생성 (모달 기간 전환용)."""
     try:
         if market.upper() == "KR":
             from pykrx import stock
@@ -140,7 +143,8 @@ def fetch_chart_series(market: str, code: str) -> dict | None:
                                         end.strftime("%Y%m%d"), code)
             if df is None or len(df) == 0:
                 return None
-            df = df.rename(columns={"종가": "Close"})[["Close"]].dropna()
+            df = df.rename(columns={"시가": "Open", "고가": "High",
+                                    "저가": "Low", "종가": "Close"})
         else:
             import yfinance as yf
             df = yf.download(code, period="5y", interval="1d",
@@ -149,15 +153,16 @@ def fetch_chart_series(market: str, code: str) -> dict | None:
                 return None
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
-            df = df[["Close"]].dropna()
+        df = df[["Open", "High", "Low", "Close"]].dropna()
         df.index = pd.to_datetime(df.index)
         df = df[df["Close"] > 0]
         if len(df) < 20:
             return None
+        agg = {"Open": "first", "High": "max", "Low": "min", "Close": "last"}
         out = {"일": _ser(df.tail(120))}
         for key, rule, keep in [("주", "W", 130), ("월", "M", 120), ("년", "Y", 30)]:
             try:
-                r = df.resample(rule).last().dropna()
+                r = df.resample(rule).agg(agg).dropna()
                 out[key] = _ser(r.tail(keep))
             except Exception:
                 pass
