@@ -87,6 +87,13 @@ _TEMPLATE = r"""<!DOCTYPE html>
   .tf.on{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
   #cinfo{background:var(--soft);border-radius:10px;padding:9px 12px;margin:10px 0 0;font-size:12.5px;line-height:1.5}
   #mc{touch-action:pan-y;cursor:crosshair}
+  .scorebox{display:flex;align-items:center;gap:12px;background:var(--soft);border-radius:12px;padding:12px 14px;margin:14px 0 10px}
+  .scv{font-size:22px;font-weight:700;margin-top:2px}
+  .sbar{flex:1;height:8px;background:var(--bd);border-radius:6px;overflow:hidden}
+  .sbar i{display:block;height:100%;background:var(--accent)}
+  .tags{display:flex;gap:6px;flex-wrap:wrap}
+  .tag{background:var(--soft);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--mut)}
+  .tag b{color:var(--tx);font-weight:700}
   table{width:100%;border-collapse:collapse;font-size:13px}
   .it td,.it th{padding:8px 6px;border-bottom:1px solid var(--bd);text-align:right}
   .it th:first-child,.it td:first-child{text-align:left;color:var(--mut)}
@@ -117,7 +124,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
 <div class="ov" id="ov">
   <div class="modal">
     <div class="mh"><div><h2 id="mt"></h2><div class="msub" id="ms"></div></div><button class="x" id="mx">×</button></div>
-    <div class="stat" id="mstat"></div>
+    <div id="mstat"></div>
     <div id="tfbtns"></div>
     <div id="cinfo"></div>
     <div class="box"><div id="mc"></div></div>
@@ -138,7 +145,7 @@ const TABS = [['recommend','⭐ 추천'],['imminent','🚀 급등임박'],['gain
               ['vol_surge','🔊 거래량'],['volatile','⚡ 변동성'],['news','📰 뉴스']];
 let curMarket = M.market_order[0], curTab = 'recommend', curRows = [];
 
-const fmt = n => (n==null?'-':Number(n).toLocaleString());
+const fmt = n => (n==null?'-':(Math.abs(n)>=100?Math.round(n).toLocaleString():Number(n).toFixed(2)));
 const cur = () => CUR[curMarket]||'';
 const sigCls = s => s==='BUY'?'s-buy':s==='SELL'?'s-sell':'s-hold';
 const sigT = s => s==='BUY'?'매수':s==='SELL'?'매도':'관망';
@@ -244,13 +251,17 @@ function openModalRow(r){
   const cy=cur(); modalOpen=true;
   document.getElementById('mt').textContent=`${r.ticker} ${r.name||''}`;
   document.getElementById('ms').textContent=`현재가 ${cy}${fmt(r.close)} · 등락 ${r.day_change>0?'+':''}${r.day_change}% · RSI ${r.rsi!=null?r.rsi:'-'} · 신호 ${sigT(r.signal)}`;
-  const st=[['종합 매수점수', (full.score100!=null?full.score100:'-')+' / 100 ('+(full.grade||'-')+')'],
-    ['자금흐름 MFI', full.mfi!=null?full.mfi:'-'],
-    ['내일 예측 마감',`${cy}${fmt(r.pred_close)} (${r.pred_chg>0?'+':''}${r.pred_chg}%)`],
-    ['예측 적중률',(r.pred_hit!=null?r.pred_hit:(full.pred_hit!=null?full.pred_hit:'-'))+'%'],
-    ['예측 범위', full.pred_low!=null?`${cy}${fmt(full.pred_low)}~${fmt(full.pred_high)}`:'-'],
-    ['거래량배수', full.vol_ratio!=null?full.vol_ratio+'x':'-']];
-  document.getElementById('mstat').innerHTML=st.map(s=>`<div class="b"><div class="k">${s[0]}</div><div class="v">${s[1]}</div></div>`).join('');
+  const sc=full.score100!=null?full.score100:null;
+  const scoreHtml = sc!=null
+    ? `<div class="scorebox"><div><div class="k">종합 매수점수</div><div class="scv">${sc}<span class="k"> / 100 ${full.grade||''}</span></div></div><div class="sbar"><i style="width:${sc}%"></i></div></div>`
+    : '';
+  const tags=[['내일 예측', `${cy}${fmt(r.pred_close)} (${r.pred_chg>0?'+':''}${r.pred_chg}%)`],
+    ['예측범위', full.pred_low!=null?`${cy}${fmt(full.pred_low)}~${fmt(full.pred_high)}`:'-'],
+    ['적중률', (r.pred_hit!=null?r.pred_hit:(full.pred_hit!=null?full.pred_hit:'-'))+'%'],
+    ['MFI', full.mfi!=null?full.mfi:'-'],
+    ['거래량', full.vol_ratio!=null?full.vol_ratio+'x':'-']];
+  document.getElementById('mstat').innerHTML = scoreHtml
+    + '<div class="tags">'+tags.map(t=>`<span class="tag">${t[0]} <b>${t[1]}</b></span>`).join('')+'</div>';
 
   const cs=getComputedStyle(document.body);
   const gcol=cs.getPropertyValue('--grid').trim(), tcol=cs.getPropertyValue('--mut').trim();
@@ -261,7 +272,7 @@ function openModalRow(r){
   const mc=document.getElementById('mc'), tfWrap=document.getElementById('tfbtns'), cinfo=document.getElementById('cinfo');
   const upC='#e02d3c', dnC='#2563eb';
   let CUR=null,CUNIT='일',CSEL=null,CGEO=null;
-  const won=n=>Math.round(n).toLocaleString()+'원';
+  const won=n=>cy+(Math.abs(n)>=100?Math.round(n).toLocaleString():Number(n).toFixed(2));
   const niceStep=x=>{const e=Math.pow(10,Math.floor(Math.log10(x)));const f=x/e;return (f<1.5?1:f<3?2:f<7?5:10)*e;};
   const fmtD=(u,s)=>{const p=s.split('-');return u==='년'?p[0]:(u==='월'?p[0].slice(2)+'/'+p[1]:p[1]+'/'+p[2]);};
   const fmtF=(u,s)=>{const p=s.split('-');return u==='년'?p[0]+'년':(u==='월'?p[0]+'.'+p[1]:p[0]+'.'+p[1]+'.'+p[2]);};
