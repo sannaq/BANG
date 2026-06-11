@@ -114,6 +114,14 @@ def one_cycle():
     except Exception as e:
         print(f"  [뉴스] 수집 오류: {repr(e)[:80]}")
 
+    # 신호 성적표 누적·평가
+    try:
+        import history
+        scoreboard = history.update(markets)
+    except Exception as e:
+        print(f"  [성적표] 오류: {repr(e)[:80]}")
+        scoreboard = {}
+
     meta = {
         "generated": dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).strftime("%Y-%m-%d %H:%M:%S KST"),
         "fast": C.FAST_MA, "slow": C.SLOW_MA,
@@ -121,6 +129,7 @@ def one_cycle():
         "vol_surge": C.VOL_SURGE_MULT,
         "market_order": list(markets.keys()),
         "news": news_data,
+        "scoreboard": scoreboard,
     }
     html = scan_dashboard.build_html(meta, markets, C.AUTO_RELOAD_SECONDS)
     with open(OUT, "w", encoding="utf-8") as f:

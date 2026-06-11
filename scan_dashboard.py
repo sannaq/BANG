@@ -94,6 +94,8 @@ _TEMPLATE = r"""<!DOCTYPE html>
   .tags{display:flex;gap:6px;flex-wrap:wrap}
   .tag{background:var(--soft);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--mut)}
   .tag b{color:var(--tx);font-weight:700}
+  #scorebar{font-size:12.5px;color:var(--mut);background:var(--soft);border-radius:10px;padding:9px 12px;margin-bottom:12px;line-height:1.5}
+  #scorebar b{color:var(--tx)}
   table{width:100%;border-collapse:collapse;font-size:13px}
   .it td,.it th{padding:8px 6px;border-bottom:1px solid var(--bd);text-align:right}
   .it th:first-child,.it td:first-child{text-align:left;color:var(--mut)}
@@ -115,6 +117,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
     </div>
   </div>
   <div class="banner" id="banner"></div>
+  <div id="scorebar"></div>
   <div class="pills" id="pills"></div>
   <div class="search"><span style="color:var(--hint)">🔍</span><input id="q" placeholder="어떤 종목을 찾으세요? (예: AAPL, 삼성)"/></div>
   <div class="tabs" id="tabs"></div>
@@ -369,6 +372,17 @@ cd.textContent='다음 새로고침 '+left+'초';
 setInterval(()=>{ if(modalOpen){cd.textContent='보는 중 (일시정지)';return;}
   left--; if(left<=0){location.reload();return;} cd.textContent='다음 새로고침 '+left+'초'; },1000);
 
+function renderScore(){
+  const sb=M.scoreboard||{}, el=document.getElementById('scorebar');
+  if(!el)return;
+  const part=label=>{const g=sb[label];if(!g||!g.d5)return null;
+    return `${label} 5일 승률 <b>${g.d5.win}%</b> (평균 ${g.d5.avg>0?'+':''}${g.d5.avg}%·${g.d5.n}건)`;};
+  const parts=['강한 매수','매수 우위'].map(part).filter(Boolean);
+  el.innerHTML = parts.length
+    ? '📊 <b>신호 성적표</b> (과거 매수신호의 5일 후 결과) — '+parts.join(' · ')
+    : '📊 <b>신호 성적표</b> — 데이터 누적 중이에요. 며칠 지나면 실제 승률이 표시됩니다.';
+}
+renderScore();
 render();
 </script>
 </body>
