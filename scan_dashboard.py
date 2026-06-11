@@ -205,6 +205,7 @@ function render(){
   document.getElementById('banner').innerHTML =
     `💡 오늘 ${curMarket==='US'?'미국':'한국'} 시장 — 추천 매수 <b>${rk.recommend.length}개</b>`
     + (g?`, 급등 1위 <b>${g.ticker} +${g.day_change}%</b>`:'')
+    + (info.regime?` · 시장 <b>${info.regime}</b>(상승종목 ${info.breadth}%)`:'')
     + `. 종목을 누르면 차트·뉴스가 열려요. <span style="color:var(--hint)">(${info.universe_size}종목·${info.data_mode})</span>`;
 
   const q=(document.getElementById('q').value||'').trim().toLowerCase();
@@ -257,7 +258,9 @@ function openModalRow(r){
     : '';
   const tags=[['내일 예측', `${cy}${fmt(r.pred_close)} (${r.pred_chg>0?'+':''}${r.pred_chg}%)`],
     ['예측범위', full.pred_low!=null?`${cy}${fmt(full.pred_low)}~${fmt(full.pred_high)}`:'-'],
-    ['적중률', (r.pred_hit!=null?r.pred_hit:(full.pred_hit!=null?full.pred_hit:'-'))+'%'],
+    ['적중률(1일)', (r.pred_hit!=null?r.pred_hit:(full.pred_hit!=null?full.pred_hit:'-'))+'%'],
+    ['5일 추세적중', full.hit5!=null?full.hit5+'%':'-'],
+    ['5일 예상', full.exp5!=null?(full.exp5>0?'+':'')+full.exp5+'%':'-'],
     ['MFI', full.mfi!=null?full.mfi:'-'],
     ['거래량', full.vol_ratio!=null?full.vol_ratio+'x':'-']];
   document.getElementById('mstat').innerHTML = scoreHtml

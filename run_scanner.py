@@ -38,6 +38,9 @@ def one_cycle():
         print(f"[{mk}] 유니버스: {usrc} / {len(tickers)}종목")
         rows, dsrc = scanner.scan(mk, tickers, names)
         ranked = scanner.rank(rows)
+        up = sum(1 for r in rows if r.get("trend"))
+        breadth = round(100 * up / len(rows)) if rows else 0
+        regime = "상승장" if breadth >= 55 else "하락장" if breadth <= 45 else "혼조"
         if mk == "US":
             try:
                 scanner.finnhub_overlay(ranked)
@@ -49,6 +52,8 @@ def one_cycle():
             "universe_size": len(tickers),
             "n_analyzed": len(rows),
             "data_mode": "데모(합성)" if dsrc == "demo" else "실데이터",
+            "breadth": breadth,
+            "regime": regime,
             "ranked": ranked,
             "all": [{"ticker": r["ticker"], "name": r.get("name", ""),
                      "close": r["close"], "day_change": r["day_change"],

@@ -329,6 +329,21 @@ def compute_metrics(ticker: str, df: pd.DataFrame, name: str = "",
     imminent = bool(vol_ratio >= 2.0 and abs(day_change) <= 2.5
                     and close >= 0.96 * hi20 and trend_up)
 
+    # ---- 5거래일 추세 지속 통계 (1일보다 예측 가능) ----
+    cl = df["Close"].values
+    maf, mas = df["MA_fast"].values, df["MA_slow"].values
+    h5 = c5 = 0
+    r5 = []
+    for t in range(len(cl) - 5):
+        if not pd.isna(mas[t]) and maf[t] > mas[t]:
+            fwd = cl[t + 5] / cl[t] - 1
+            r5.append(fwd)
+            c5 += 1
+            if fwd > 0:
+                h5 += 1
+    hit5 = round(100.0 * h5 / c5, 0) if c5 else None
+    exp5 = round(float(np.median(r5)) * 100, 1) if r5 else None
+
     # ---- 다음 마감가 예측 + 과거 적중률 백테스트 ----
     closes_list = df["Close"].tolist()
     r_hat, sigma = predict_r(closes_list)
@@ -370,6 +385,9 @@ def compute_metrics(ticker: str, df: pd.DataFrame, name: str = "",
         "headline": headline,
         "mfi": round(mfi_v, 0),
         "imminent": imminent,
+        "trend": bool(trend_up),
+        "hit5": hit5,
+        "exp5": exp5,
         "signal": signal,
         "reasons": reasons,
         "buy_ratio": buy_ratio,
