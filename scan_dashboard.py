@@ -85,6 +85,8 @@ _TEMPLATE = r"""<!DOCTYPE html>
   #tfbtns{display:flex;gap:6px;margin:12px 0 0}
   .tf{background:var(--soft);color:var(--mut);border:1px solid var(--bd);border-radius:8px;padding:6px 14px;font-size:13px;cursor:pointer}
   .tf.on{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
+  #cinfo{background:var(--soft);border-radius:10px;padding:9px 12px;margin:10px 0 0;font-size:12.5px;line-height:1.5}
+  #mc{touch-action:pan-y;cursor:crosshair}
   table{width:100%;border-collapse:collapse;font-size:13px}
   .it td,.it th{padding:8px 6px;border-bottom:1px solid var(--bd);text-align:right}
   .it th:first-child,.it td:first-child{text-align:left;color:var(--mut)}
@@ -117,7 +119,8 @@ _TEMPLATE = r"""<!DOCTYPE html>
     <div class="mh"><div><h2 id="mt"></h2><div class="msub" id="ms"></div></div><button class="x" id="mx">×</button></div>
     <div class="stat" id="mstat"></div>
     <div id="tfbtns"></div>
-    <div class="box"><div id="mc" style="height:240px"></div></div>
+    <div id="cinfo"></div>
+    <div class="box"><div id="mc"></div></div>
     <div class="box"><canvas id="mflow" height="150"></canvas></div>
     <div id="mnews"></div>
     <div id="minv"></div>
@@ -255,35 +258,58 @@ function openModalRow(r){
   const grid={color:gcol}, tick={color:tcol,maxTicksLimit:8};
   const d=full.detail;
   if(flowChart)flowChart.destroy(); if(invChart)invChart.destroy();
-  const mc=document.getElementById('mc'), tfWrap=document.getElementById('tfbtns');
-  function candleSVG(s){
+  const mc=document.getElementById('mc'), tfWrap=document.getElementById('tfbtns'), cinfo=document.getElementById('cinfo');
+  const upC='#e02d3c', dnC='#2563eb';
+  let CUR=null,CUNIT='일',CSEL=null,CGEO=null;
+  const won=n=>Math.round(n).toLocaleString()+'원';
+  const niceStep=x=>{const e=Math.pow(10,Math.floor(Math.log10(x)));const f=x/e;return (f<1.5?1:f<3?2:f<7?5:10)*e;};
+  const fmtD=(u,s)=>{const p=s.split('-');return u==='년'?p[0]:(u==='월'?p[0].slice(2)+'/'+p[1]:p[1]+'/'+p[2]);};
+  const fmtF=(u,s)=>{const p=s.split('-');return u==='년'?p[0]+'년':(u==='월'?p[0]+'.'+p[1]:p[0]+'.'+p[1]+'.'+p[2]);};
+  function candleSVG(s,unit,sel){
     const n=s.c.length; if(!n) return '<div class="empty">데이터 없음</div>';
-    const W=560,H=240,P=10, lo=Math.min(...s.l), hi=Math.max(...s.h), rng=(hi-lo)||1;
-    const Y=v=>(P+(hi-v)/rng*(H-2*P)), step=(W-2*P)/n, cw=Math.max(1.5,step*0.6);
-    const gl=v=>`<line x1="0" y1="${Y(v).toFixed(1)}" x2="${W}" y2="${Y(v).toFixed(1)}" stroke="${gcol}" stroke-width="0.5"/><text x="3" y="${(Y(v)-2).toFixed(1)}" fill="${tcol}" font-size="9">${Math.round(v).toLocaleString()}</text>`;
-    let g=gl(hi)+gl((hi+lo)/2)+gl(lo);
-    for(let i=0;i<n;i++){const x=P+step*i+step/2,up=s.c[i]>=s.o[i],col=up?'#e02d3c':'#2563eb';
+    const W=560,H=250,Lp=6,Rp=52,T=22,volH=38,dateH=15,plotB=H-volH-dateH;
+    const lo=Math.min(...s.l),hi=Math.max(...s.h),rng=(hi-lo)||1;
+    const Y=v=>(T+(hi-v)/rng*(plotB-T)),x0=Lp,x1=W-Rp,step=(x1-x0)/n,cw=Math.max(2,step*0.66),X=i=>x0+step*i+step/2;
+    CGEO={x0,step,n,W};
+    let g='';const gs=niceStep(rng/4);
+    for(let val=Math.ceil(lo/gs)*gs;val<=hi;val+=gs){const y=Y(val);
+      g+=`<line x1="${x0}" y1="${y.toFixed(1)}" x2="${x1}" y2="${y.toFixed(1)}" stroke="${gcol}" stroke-width="0.5"/><text x="${x1+4}" y="${(y+3).toFixed(1)}" fill="${tcol}" font-size="9">${Math.round(val).toLocaleString()}</text>`;}
+    const mp=Math.min(20,Math.max(3,Math.floor(n/4))),ma=[];
+    for(let i=0;i<n;i++){if(i<mp-1){ma.push(null);continue;}let sm=0;for(let j=0;j<mp;j++)sm+=s.c[i-j];ma.push(sm/mp);}
+    let md='',stt=false;ma.forEach((val,i)=>{if(val==null)return;const px=X(i),py=Y(val);md+=(stt?' L':'M')+px.toFixed(1)+','+py.toFixed(1);stt=true;});
+    const vmax=Math.max(...s.v,1);let vol='';
+    for(let i=0;i<n;i++){const x=X(i),up=s.c[i]>=s.o[i],col=up?upC:dnC;
       g+=`<line x1="${x.toFixed(1)}" y1="${Y(s.h[i]).toFixed(1)}" x2="${x.toFixed(1)}" y2="${Y(s.l[i]).toFixed(1)}" stroke="${col}" stroke-width="1"/>`;
-      const a=Y(s.o[i]),b=Y(s.c[i]),top=Math.min(a,b),hh=Math.max(1,Math.abs(b-a));
-      g+=`<rect x="${(x-cw/2).toFixed(1)}" y="${top.toFixed(1)}" width="${cw.toFixed(1)}" height="${hh.toFixed(1)}" fill="${col}"/>`;}
-    return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="240" preserveAspectRatio="none">${g}</svg>`;
+      const a=Y(s.o[i]),b=Y(s.c[i]),tp=Math.min(a,b),hh=Math.max(1.2,Math.abs(b-a));
+      g+=`<rect x="${(x-cw/2).toFixed(1)}" y="${tp.toFixed(1)}" width="${cw.toFixed(1)}" height="${hh.toFixed(1)}" fill="${col}"/>`;
+      const vh=(s.v[i]/vmax)*volH;vol+=`<rect x="${(x-cw/2).toFixed(1)}" y="${(H-vh).toFixed(1)}" width="${cw.toFixed(1)}" height="${vh.toFixed(1)}" fill="${col}" opacity="0.4"/>`;}
+    let cross='';if(sel!=null&&sel>=0&&sel<n){const x=X(sel);cross=`<line x1="${x.toFixed(1)}" y1="${T}" x2="${x.toFixed(1)}" y2="${plotB}" stroke="${tcol}" stroke-width="0.8" stroke-dasharray="3 3"/>`;}
+    let dl='';[0,Math.floor(n/3),Math.floor(2*n/3),n-1].forEach(i=>{if(i>=0&&i<n)dl+=`<text x="${X(i).toFixed(1)}" y="${(plotB+12).toFixed(1)}" fill="${tcol}" font-size="9" text-anchor="middle">${fmtD(unit,s.dates[i])}</text>`;});
+    const maL=md?`<path d="${md}" fill="none" stroke="#d29922" stroke-width="1.3"/>`:'';
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="height:auto;display:block"><text x="${x0}" y="13" fill="${tcol}" font-size="12" font-weight="700">${unit}봉</text>${g}${maL}${vol}${cross}${dl}</svg>`;
   }
   function lineSVG(close){
     const n=close.length; if(!n) return '<div class="empty">데이터 없음</div>';
-    const W=560,H=240,P=10, lo=Math.min(...close),hi=Math.max(...close),rng=(hi-lo)||1;
-    const Y=v=>(P+(hi-v)/rng*(H-2*P)), step=(W-2*P)/((n-1)||1);
+    const W=560,H=220,P=10,lo=Math.min(...close),hi=Math.max(...close),rng=(hi-lo)||1;
+    const Y=v=>(P+(hi-v)/rng*(H-2*P)),step=(W-2*P)/((n-1)||1);
     const pts=close.map((v,i)=>`${(P+step*i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
-    return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="240" preserveAspectRatio="none"><polyline fill="none" stroke="${lcol}" stroke-width="1.5" points="${pts}"/></svg>`;
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="height:auto;display:block"><polyline fill="none" stroke="${lcol}" stroke-width="1.5" points="${pts}"/></svg>`;
   }
-  function drawPrice(s){ mc.innerHTML = (s&&s.c)? candleSVG(s) : lineSVG((s&&s.close)||[]); }
+  function showInfo(s,unit,i){const up=s.c[i]>=s.o[i],col=up?upC:dnC,chg=i>0?((s.c[i]/s.c[i-1]-1)*100):0;
+    cinfo.style.display=''; cinfo.innerHTML=`<b>${fmtF(unit,s.dates[i])}</b>　시 ${won(s.o[i])} · 고 <span style="color:${upC}">${won(s.h[i])}</span> · 저 <span style="color:${dnC}">${won(s.l[i])}</span> · 종 <b style="color:${col}">${won(s.c[i])}</b> <span style="color:${col}">(${chg>0?'+':''}${chg.toFixed(2)}%)</span>`;}
+  function drawCandle(s,unit){CUR=s;CUNIT=unit;CSEL=s.c.length-1;mc.innerHTML=candleSVG(s,unit,CSEL);showInfo(s,unit,CSEL);}
+  function pickC(clientX){if(!CUR||!CGEO)return;const r=mc.getBoundingClientRect();const xv=(clientX-r.left)/r.width*CGEO.W;
+    let i=Math.round((xv-CGEO.x0)/CGEO.step-0.5);i=Math.max(0,Math.min(CGEO.n-1,i));if(i!==CSEL){CSEL=i;mc.innerHTML=candleSVG(CUR,CUNIT,CSEL);showInfo(CUR,CUNIT,CSEL);}}
+  mc.onmousemove=e=>pickC(e.clientX);
+  mc.ontouchstart=e=>{pickC(e.touches[0].clientX);};
+  mc.ontouchmove=e=>{pickC(e.touches[0].clientX);};
   if(full.chart){
     const tfs=['일','주','월','년'].filter(k=>full.chart[k]&&full.chart[k].c&&full.chart[k].c.length);
     tfWrap.innerHTML=tfs.map((k,i)=>`<button class="tf${i===0?' on':''}" data-k="${k}">${k}</button>`).join('');
-    mc.style.display=''; drawPrice(full.chart[tfs[0]]);
-    tfWrap.querySelectorAll('.tf').forEach(b=>b.onclick=()=>{
-      tfWrap.querySelectorAll('.tf').forEach(x=>x.classList.toggle('on',x===b)); drawPrice(full.chart[b.dataset.k]);});
-  } else if(d){ tfWrap.innerHTML=''; mc.style.display=''; drawPrice({close:d.close}); }
-  else { tfWrap.innerHTML=''; mc.style.display='none'; }
+    mc.style.display=''; drawCandle(full.chart[tfs[0]],tfs[0]);
+    tfWrap.querySelectorAll('.tf').forEach(b=>b.onclick=()=>{tfWrap.querySelectorAll('.tf').forEach(x=>x.classList.toggle('on',x===b));drawCandle(full.chart[b.dataset.k],b.dataset.k);});
+  } else if(d){ tfWrap.innerHTML=''; mc.style.display=''; CUR=null; cinfo.style.display='none'; mc.innerHTML=lineSVG(d.close); }
+  else { tfWrap.innerHTML=''; mc.style.display='none'; cinfo.style.display='none'; }
   document.getElementById('mflow').style.display = d?'':'none';
   if(d){
     const obv=[];let acc=0;for(let k=0;k<d.vol.length;k++){acc+=(d.updown[k]>0?1:-1)*d.vol[k];obv.push(Math.round(acc));}
